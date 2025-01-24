@@ -1,6 +1,8 @@
 package com.schias.playground;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class Main {
     private final String grade;
@@ -18,61 +20,73 @@ public class Main {
     }
 
     public static void main(String[] args) {
-//        String input = "PRESENT * IF (GRADE == 'G1' OR GRADE == 'G2', 20000, 30000)";
+//        String input = "PRESENT * IF (GRADE == 'G1' OR GRADE == 'G2', 20000 * 5, 30000)";
 //        String input = "PRESENT * IF (GRADE == 'G1' OR GRADE == 'G2', 15000, 20000)";
 //        String input = "SALARY * IF (WORKLOCATION == 'Office', 0.24 , 1.24 ) / 100";
 //        String input = "PRESENT * SALARY";
-        String input = "SALARY * 0.3 / 100";
+//        String input = "SALARY * 0.3 / 100";
+        String input = "IF (SALARY >> 12000000, 1000 * 5, SALARY) * 4 / 100";
         Double result = processFormula(input);
 
         System.out.println(Math.ceil(result));
     }
 
     public static Double processFormula(String formula){
-
-        Main instance = new Main();
-
         // Check is there arithmetic operation
         Boolean isThereArithmeticOperation = checkIsThereArithmeticOperation(formula);
 
+        // Check is there conditional operation
         Boolean isThereConditionalOperation = formula.contains("IF");
 
         Double result = 0.0;
-
         if (isThereArithmeticOperation) {
             // Split into condition and value
             result = doArithmeticOperation(formula);
-        }else if (isThereConditionalOperation) {
+
+            // FOR TESTING PURPOSE
+            System.out.println("++ ARITHMETIC OPERATION ++");
+            System.out.println("Formula => " + formula + " Result => " + result);
+            System.out.println("===========================");
+        }
+        else if (isThereConditionalOperation) {
             // Split into condition and value
             result = conditionalOperation(formula);
-        }else{
-            result = replaceEntities(formula);
+
+            // FOR TESTING PURPOSE
+            System.out.println("++ CONDITIONAL OPERATION ++");
+            System.out.println("Formula => " + formula + " Result => " + result);
+            System.out.println("===========================");
         }
+        else{
+            result = replaceEntities(cleanString(formula));
+
+            // FOR TESTING PURPOSE
+            System.out.println("++ REPLACE ENTITIES ++");
+            System.out.println("Formula => " + formula + " Result => " + result);
+            System.out.println("===========================");
+        }
+
 
         return result;
     }
 
-
     /**
      * ARITHMETIC OPERATION
      * */
-    public static Double replaceEntities(String fieldName){
-        Main instance = new Main();
-
-        return switch (fieldName.toUpperCase()) {
-            case "PRESENT" -> instance.present;
-            case "SALARY" -> instance.salary;
-            default -> 0.0;
-        };
-    }
-
     public static Boolean checkIsThereArithmeticOperation(String formula) {
         // Define common arithmetic operators
         String[] operators = {"+", "-", "*", "/"};
 
+
+        int firstParenIndex = formula.indexOf('(');
+        int lastParenIndex = formula.lastIndexOf(')');
+        int multiplyIndex = formula.indexOf('*');
+
+        boolean isMultiplyBetweenParentheses = multiplyIndex > firstParenIndex && multiplyIndex < lastParenIndex;
+
         // Check if any conditionalOperator exists in the formula
         return Arrays.stream(operators)
-                .anyMatch(formula::contains);
+                .anyMatch(formula::contains) && !isMultiplyBetweenParentheses;
     }
 
     public static String[] getArithmeticOperation(String formula) {
@@ -102,14 +116,13 @@ public class Main {
     }
 
     public static Double doArithmeticOperation(String formula){
-        String[] parts = getArithmeticOperation(formula);
-
         String operator = getOperator(formula);
 
+        String[] parts = splitExpression(formula, operator);
         Double rightPart = checkIsStringNumber(parts[0]) ? Double.parseDouble(parts[0]) : processFormula(parts[0]);
         Double leftPart = checkIsStringNumber(parts[1]) ? Double.parseDouble(parts[1]) : processFormula(parts[1]);
 
-        Double result = 0.0;
+        Double result;
         switch (operator) {
             case "+" -> result = rightPart + leftPart;
             case "*" -> result = rightPart * leftPart;
@@ -121,28 +134,26 @@ public class Main {
         return result;
     }
 
-    public static Boolean checkIsStringNumber(String value){
-        return value.matches("\\d+") ? true : value.matches("-?\\d+(\\.\\d+)?");
-    }
-
-
-
     /**
      * CONDITIONAL OPERATION
      * */
     public static Double conditionalOperation(String input) {
         Main instance = new Main();
+
         String[] parts = getPart(input);
         String[] conditions = getCondition(parts[0]);
 
         // Evaluate conditions
-        boolean result = evaluateConditions(conditions, instance);
+        Boolean result = evaluateConditions(conditions, instance);
+        Double trueValue = checkIsStringNumber(parts[1]) ? Double.parseDouble(parts[1]) : processFormula(parts[1]);
+        Double falseValue = checkIsStringNumber(parts[2]) ? Double.parseDouble(parts[2]) : processFormula(parts[2]);
+
 
         // Return appropriate value based on condition evaluation
-        return Double.parseDouble(result ? parts[1] : parts[2]);
+        return result ? trueValue : falseValue;
     }
 
-    private static boolean evaluateConditions(String[] conditions, Main instance) {
+    private static Boolean evaluateConditions(String[] conditions, Main instance) {
         boolean firstConditionResult = evaluateSingleCondition(conditions[0], instance);
 
         // If first condition is true or there's only one condition, return the result
@@ -178,7 +189,10 @@ public class Main {
 
     public static String[] getPart(String condition) {
         // Remove the 'IF' and parentheses
-        String cleaned = condition.substring(4, condition.length() - 1).trim();
+        String cleaned = condition.replace("IF", "")
+                .replace(" ", "")
+                .replace("(", "")
+                .replace(")", "");
 
         return cleaned.split(",");
     }
@@ -193,7 +207,49 @@ public class Main {
         }
     }
 
+    /**
+     * UTILITIES
+     * */
     public static String cleanString(String input) {
-        return input.substring(1, input.length() - 1).replace("'", "");
+        return input.replace(" ", "")
+                .replace("'", "");
+    }
+
+    public static Boolean checkIsStringNumber(String value){
+        value = cleanString(value);
+        return value.matches("\\d+") ? true : value.matches("-?\\d+(\\.\\d+)?");
+    }
+
+    public static Double replaceEntities(String fieldName){
+        Main instance = new Main();
+
+        return switch (fieldName.toUpperCase()) {
+            case "PRESENT" -> instance.present;
+            case "SALARY" -> instance.salary;
+            default -> 0.0;
+        };
+    }
+
+    public static String[] splitExpression(String expression, String operator) {
+        boolean isNested = expression.contains("(") && expression.contains(")");
+        int lastIndex = expression.lastIndexOf(")");
+        int operatorIndex = expression.lastIndexOf(operator);
+
+        List<String> parts = new ArrayList<>();
+        if (operatorIndex > lastIndex && isNested) {
+            String ifExpression = expression.substring(0, lastIndex + 1);
+            String multiplier = expression.substring(lastIndex + 1)
+                    .replace(" " + operator + " ", "");
+
+            parts.add(ifExpression);
+            parts.add(multiplier);
+        } else {
+            System.out.println("EXPRESSION: " + expression);
+            String[] splitFormula = expression.split("\\"+operator, 2);
+            parts.add(splitFormula[0].trim());
+            parts.add(splitFormula[1].trim());
+        }
+
+        return parts.toArray(new String[0]);
     }
 }
